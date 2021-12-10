@@ -1,0 +1,254 @@
+# --Emitter-- 12/6/2021 3:55:17 PM
+
+#Startin delay of the emitter (in frames).
+$START_DELAY:0
+#Launch interval of particles (in frames).
+$LAUNCH_INTERVAL:150
+#Payload carried by each particle.
+$PAYLOAD:100.0
+#The amount of particles per launch.
+$COUNT:1
+#The health of particles. Only relevant while a particle is still a sniper target.
+$HEALTH:2.0
+#The amount of crimson per frame spawned by a particle that's swimming in creeper. Will make particles red.
+$CRIMSON_PER_FRAME:0.0
+#The maximum particles that can be alive at once from this emitter.
+$MAX_PARTICLES:0
+#The lifetime (in frames) of each particle. Particles grow visually over time as this timer runs out, and then they explode.
+$LIFETIME:5400
+#Add a random value to lifetime. e.g. if lifetime is 1000 and fuzz is set to 100, lifetime will be between 900 and 1100.
+$LIFETIME_RANDOM_FUZZ:0
+#1 if this is supposed to be a flip emitter, 0 otherwise. Only has an effect on C emitters.
+$IS_FLIP_EMITTER:0
+#How far will the emitter throw particles. 0 will throw the particles straight up in the air.
+#Don't set this too high, a value of 3 already goes pretty far.
+$SPAWN_FORCE_MULTIPLIER:1.0
+#The gravity applied to particles created by this emitter.
+$GRAVITY_X:0.0
+$GRAVITY_Y:-0.018
+$GRAVITY_Z:0.0
+#Emitters levitate above terrain and creeper. This is an additional height value that the emitter will levitate above.
+$LEVITATE_HEIGHT:1.5
+
+Self GetUnitPosition ->vPos
+<-vPos.x <-vPos.z FALSE FALSE GetExactCreeperHeight ->fHeight pop pop pop
+
+#Handle emitter levitation.
+<-fHeight <-LEVITATE_HEIGHT add ->fHeight
+<-fHeight <-G_fHeight sub 0.05 mul <-G_fHeight add ->G_fHeight
+Self <-vPos.x <-G_fHeight <-vPos.z V3 SetUnitPosition
+
+#Handle behavior upon nullification.
+Self GetUnitSuppressCount neq0 if
+	<-G_bIsNullified not if
+		TRUE ->G_bIsNullified
+		@RefreshVisuals
+	endif
+else <-G_bIsNullified if 
+	FALSE ->G_bIsNullified
+	@RefreshVisuals
+endif endif
+
+
+<-G_sState "DELAYED" eq if
+	@RefreshStartDelayText
+	
+	GetGameUpdateCount <-START_DELAY gte if
+		"EMITTING" @SetState
+	endif
+else <-G_sState "EMITTING" eq if
+	#Mverse host-only logic below this point
+	GetMversePlayerNum gt0 if
+		return
+	endif
+		
+	#Do nothing if we are nullified and this is not a flip emitter
+	<-G_bIsNullified <-IS_FLIP_EMITTER not and if
+		return
+	endif
+	
+	GetTimer0 eq0 if
+		<-LAUNCH_INTERVAL SetTimer0
+		
+		#Do not spawn any particles if we've reached the global max
+		<-*PE_iSpawned <-*PE_MAX_PARTICLES gte if return endif
+		
+		#Do not spawn any particles if creeper is at cutoff and we are a C emitter that's not flipped.
+		<-G_bIsNullified not if
+			IsCreeperCutoff <-PAYLOAD 0 gte and if return endif
+		endif
+		
+		#Create table of properties to send to the particle.
+		CreateTable ->tOpts
+		<-G_lVarsToSend 0 do
+			<-tOpts <-G_lVarsToSend[I] dup <-! SetTableElement
+		loop
+		
+		#Add any additional properties that require special handling to the table of properties to send to the particle.
+		
+		#Payload is set to negative if this emitter is currently nullified.
+		<-tOpts "PAYLOAD" <-PAYLOAD <-G_bIsNullified if neg endif SetTableElement
+		
+		#Set cur health and max health. The reason these are split is because if a particle gets hit by a sniper on frame 0,
+		#the host will need to transmit a lower cur health value.
+		<-tOpts "CUR_HEALTH" <-HEALTH SetTableElement
+		<-tOpts "MAX_HEALTH" <-HEALTH SetTableElement
+		
+		#Pass our UID, so the particle can tell us if it died. That way we can handle max particle value of the emitter.
+		<-tOpts "EMITTER_UID" Self SetTableElement
+		
+		#Generate the direction and force of the particle.
+		RandFloat 0.5 sub 0.18 mul <-SPAWN_FORCE_MULTIPLIER mul
+		0.65
+		RandFloat 0.5 sub 0.18 mul <-SPAWN_FORCE_MULTIPLIER mul
+			V3 ->vInitialForce
+		
+		#This is needed because the particle doesn't update the global max particles immediately, so without this
+		#there is the potential of more particles than max being created.
+		0 ->iSpawnedThisLoop
+		<-COUNT 0 do
+			#If we've reached max particles (including ones created this loop), don't spawn any more.
+			<-*PE_iSpawned <-iSpawnedThisLoop add <-*PE_MAX_PARTICLES gte if
+				break
+			endif
+			#If max particles on this emitter has been set, and the number of particles exceeds this emitter's max, don't spawn any more.
+			<-MAX_PARTICLES 1 gte <-G_iParticlesOwned <-MAX_PARTICLES gte and if
+				break
+			endif
+		
+			#Throw multiple particles in roughly the same direction by slightly fuzzing the original direction and force we created.
+			<-tOpts "INITIAL_FORCE"
+				<-vInitialForce.x RandFloat 0.5 sub 0.1 mul add <-SPAWN_FORCE_MULTIPLIER mul
+				<-vInitialForce.y
+				<-vInitialForce.z RandFloat 0.5 sub 0.1 mul add <-SPAWN_FORCE_MULTIPLIER mul
+			V3 SetTableElement
+			
+			#Fuzz the lifetime value.
+			<-tOpts "LIFETIME" <-LIFETIME_RANDOM_FUZZ neg <-LIFETIME_RANDOM_FUZZ 1 add RandInt <-LIFETIME add SetTableElement
+			
+			#Finally, set a copy of all the previously set parameters as another parameter, which can be used to create
+			#clones of the particle for other Mverse players.
+			<-tOpts "ENTRY_PARAMETERS" <-tOpts Copy SetTableElement
+			
+			#Create the particle.
+			<-*PE_tGUIDs{"Particle"} <-vPos.x <-vPos.y 2.0 add <-vPos.z V3 <-tOpts CreateUnit
+			
+			#Increment our counters.
+			<-G_iParticlesOwned 1 add ->G_iParticlesOwned
+			<-iSpawnedThisLoop 1 add ->iSpawnedThisLoop
+		loop
+	endif
+endif endif
+
+:once
+	@awake
+	
+	@InitSwitches
+	@RefreshPopupText
+	@RefreshVisuals
+	
+	<-START_DELAY gt0 if
+		"DELAYED" @SetState
+	else
+		"EMITTING" @SetState
+	endif
+:awake
+	once @init endonce
+	
+	@RefreshStartDelayText
+:init
+	Self TRUE SetUnitOutlineEnabled
+	Self TRUE SetUnitOutlineMode
+	Self
+		"000022220000
+		 000021120000
+		 000221122000
+		 002111111200
+		 222111111222
+		 211112211112
+		 211112211112
+		 222111111222
+		 002111111200
+		 000221122000
+		 000021120000
+		 000022220000"
+	RemoveWhiteSpace SetUnitMiniMapImage
+	
+	#Names of properties of this emitter to send copies of to any created particles.
+	ClearStack "GRAVITY_X" "GRAVITY_Y" "GRAVITY_Z" "CRIMSON_PER_FRAME" List ->G_lVarsToSend
+	
+	0 ->G_iParticlesOwned
+	FALSE ->G_bIsNullified
+	
+	Self GetUnitPosition ->vPos
+	<-vPos.y asfloat ->G_fHeight
+	
+	<-IS_FLIP_EMITTER if
+		Self "flip" TRUE SetObjActive
+	else
+		Self "flip" FALSE SetObjActive
+	endif
+	
+	@InitSwitches
+	@RefreshPopupText
+	@RefreshVisuals
+	@RefreshStartDelayText
+	Self FALSE SetMVerseCreatesUnitGhost
+:gameloaded
+	Self FALSE SetMVerseCreatesUnitGhost
+# s1 - 
+:SetState
+	->SST_sNewState
+	
+	<-SST_sNewState "EMITTING" eq if
+		@RefreshStartDelayText
+	endif
+	
+	<-SST_sNewState ->G_sState
+	--SST_sNewState
+:RefreshVisuals
+	#If we are nullified or we're an AC emitter, change the outline and minimap color to when enemy units are contained.
+	<-G_bIsNullified Self GetUnitType <-*PE_tGUIDs{"AC Emitter"} eq or if
+		Self 0.784 0.47 0 1 V4 SetUnitMiniMapImageColor
+		Self 0.5 0.5 0.5 1 V4 SetUnitOutlineColor
+	else
+		Self 1 0 0 1 V4 SetUnitMiniMapImageColor
+		Self 1 0 0 1 V4 SetUnitOutlineColor
+	endif
+	
+	#Change the flip light to green if this flip emitter is nullified, otherwise make it red.
+	<-IS_FLIP_EMITTER if
+		<-G_bIsNullified if
+			Self "flip" 0 1 0 V3 SetObjColor
+		else
+			Self "flip" 1 0 0 V3 SetObjColor
+		endif
+	endif
+:RefreshPopupText
+	Self TRUE SetUnitPopupEnabled
+	Self <-IS_FLIP_EMITTER if "Flip " else "" endif "Particle Emitter" concat SetUnitPopupText0
+	Self <-COUNT "/" <-LAUNCH_INTERVAL 30.0 div 100.0 mul floor 100.0 div concat3 "s, " <-MAX_PARTICLES 0 gt if <-MAX_PARTICLES concat3 " Max, " endif <-PAYLOAD concat3 " Amt, " <-HEALTH concat3 "HP" concat SetUnitPopupText1
+:InitSwitches
+	#If this is a C emitter, make sure payload provided is not negative.
+	#If this is an AC emitter, make sure the payload provided is negative.
+	#AC emitters also cannot spawn crimson, and they cannot be flip emitters.
+	Self GetUnitType <-*PE_tGUIDs{"C Emitter"} eq if
+		<-PAYLOAD abs ->PAYLOAD
+	else Self GetUnitType <-*PE_tGUIDs{"AC Emitter"} eq if
+		<-PAYLOAD abs neg ->PAYLOAD
+		0.0 ->CRIMSON_PER_FRAME
+		FALSE ->IS_FLIP_EMITTER
+	endif endif
+:RefreshStartDelayText
+	<-START_DELAY GetGameUpdateCount sub ->RSD_iFramesLeft
+	
+	<-RSD_iFramesLeft 0 lte if
+		Self "" SetUnitDebugText
+	else <-RSD_iFramesLeft 60 lt if
+		Self <-RSD_iFramesLeft "f" concat SetUnitDebugText
+	else 
+		Self <-RSD_iFramesLeft 30.0 div floor "s" concat SetUnitDebugText
+	endif endif
+	
+
+	

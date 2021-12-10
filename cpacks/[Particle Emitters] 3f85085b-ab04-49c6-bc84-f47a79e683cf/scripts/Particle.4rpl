@@ -1,0 +1,225 @@
+# --Particle-- 12/6/2021 3:52:24 PM
+
+$PAYLOAD:0.0
+$CUR_HEALTH:1.0
+$MAX_HEALTH:1.0
+$LIFETIME:0
+$CRIMSON_PER_FRAME:0.0
+$GRAVITY_X:0.0
+$GRAVITY_Y:-0.018
+$GRAVITY_Z:0.0
+#Initial scale of the particle.
+$INITIAL_SCALE:1.0
+#The amount scale the particle will grow until max. INITIAL_SCALE + GROWTH_SCALE = max scale.
+$GROWTH_SCALE:1.0
+#The UID of the parent emitter. Used to make individual emitter particle caps work.
+$$EMITTER_UID:-1
+
+#Destroy this unit if it is not spawned by mverse and we are not host.
+#This would happen if a player hosted Mverse in the middle of a game.
+-?HOST_UID not GetMVersePlayerNum 0 gt and if
+	Self TRUE TRUE TRUE DestroyUnit
+endif
+
+@HandleMovement
+
+#If hit by a sniper
+Self GetUnitHealth <-G_fHealth <-fGrowthDamagePerFrame sub lt if
+	#Transmit the damage to other players
+	"PE_ParticleDamaged" "HOST_UID" -?HOST_UID if <-HOST_UID else Self endif "DAMAGE" <-G_fHealth Self GetUnitHealth sub 2 TableN SendMVerseMsg
+	Self GetUnitHealth ->G_fHealth
+endif
+<-G_fHealth <-fGrowthDamagePerFrame sub ->G_fHealth
+Self <-G_fHealth SetUnitHealth
+@UpdateScale
+
+<-G_fHealth 0 lte if
+	TRUE ->G_bNaturalDecay
+	Self 0 DamageUnit
+endif
+
+:once
+	@awake
+	<-*PE_iSpawned 1 add ->*PE_iSpawned
+	<-*PE_tParticleUIDs -?HOST_UID if <-HOST_UID else Self endif Self SetTableElement
+	TRUE ->G_bUnitGlobalSpawnInitialized
+	
+	#If we are host, send a message to others to create a clone.
+	#Putting it here because if I put it in :awake, if host instantly kills the particle,
+	#it remains for clients.
+	-?HOST_UID not if
+		Self GetUnitHealth 0 gt if
+			<-ENTRY_PARAMETERS "HOST_UID" Self SetTableElement 
+			<-ENTRY_PARAMETERS "_INITIAL_POSITION" Self GetUnitPosition SetTableElement 
+			#Transmit health in case this unit got shot by a sniper right after Awake which can happen.
+			<-ENTRY_PARAMETERS "CUR_HEALTH" Self GetUnitHealth SetTableElement 
+			
+			"PE_ParticleCreated" <-ENTRY_PARAMETERS SendMVerseMsg
+		endif
+	endif
+	
+	Self GetUnitMaxHealth <-LIFETIME asfloat div ->fGrowthDamagePerFrame
+	@UpdateScale
+:awake
+	once @init endonce
+:destroyed
+	#Transmit the destruction to other players
+	"PE_ParticleDestroyed" "HOST_UID" -?HOST_UID if <-HOST_UID else Self endif "_NATURAL_DECAY" <-G_bNaturalDecay 2 TableN SendMVerseMsg
+
+	<-G_bUnitGlobalSpawnInitialized if
+		<-*PE_iSpawned 1 sub ->*PE_iSpawned
+		<-*PE_tParticleUIDs -?HOST_UID if <-HOST_UID else Self endif RemoveTableElement
+	endif
+	<-EMITTER_UID "Emitter.4rpl" "G_iParticlesOwned" <-EMITTER_UID "Emitter.4rpl" "G_iParticlesOwned" GetScriptVar 1 sub SetScriptVar
+	Self GetUnitPosition ->vPos
+	#If we are host, spawn creeper
+	-?HOST_UID not if
+		#<-vPos.x <-vPos.z FALSE GetExactTerrainWithShield <-vPos.x <-vPos.z FALSE GetExactTerrain eq if
+			<-G_bNaturalDecay if
+				<-vPos ToCell <-PAYLOAD AddCreeper
+			endif
+		#endif
+	endif
+:init
+	<-PAYLOAD gte0 if
+		<-CRIMSON_PER_FRAME gt0 if
+			Self "sphere" 1.2 0.08 0.18 V3 SetObjColor
+		else
+			Self "sphere" 0.08 0.18 1.2 V3 SetObjColor
+		endif
+		Self 1 0 0 0 V4 SetUnitSpecialTarget
+		
+		Self TRUE SetUnitOutlineEnabled
+		Self TRUE SetUnitOutlineMode
+		Self 0 0 0.6 1 V4 SetUnitOutlineColor
+		Self 2 SetUnitOutlineWidth
+	else
+		Self "sphere" 0.4 0.4 0.4 V3 SetObjColor
+		Self 0 0 0 0 V4 SetUnitSpecialTarget
+	endif
+	
+	-?INITIAL_FORCE not if
+		0 0 0 V3 ->HM_vForce
+	else
+		<-INITIAL_FORCE ->HM_vForce
+	endif
+	<-GRAVITY_X <-GRAVITY_Y <-GRAVITY_Z V3 ->HM_vGravity
+	GetUnitPosition(Self) ->HM_vLastPosition
+	
+	Self <-MAX_HEALTH SetUnitMaxHealth
+	Self <-CUR_HEALTH SetUnitHealth
+	Self 0.0 SetUnitHealRate
+	<-CUR_HEALTH ->G_fHealth
+	
+	GetMapSize ->G_iMapHeight ->G_iMapWidth
+	
+	@UpdateScale
+	
+	Self FALSE SetMVerseCreatesUnitGhost
+:gameloaded
+	Self FALSE SetMVerseCreatesUnitGhost
+:HandleMovement
+	Self GetUnitPosition ->HM_vPosition
+	
+	<-HM_vPosition <-HM_vLastPosition sub ->HM_vDelta
+	<-HM_vPosition.x <-HM_vPosition.z FALSE FALSE GetExactCreeperHeight ->HM_fHeight pop ->HM_bHasCreep ->HM_bHasAC
+	
+	#Reset flow parameters. We don't know if we're underwater yet or not.
+	0.0 ->HM_fFlowZ
+	0.0 ->HM_fFlowX
+	<-HM_vPosition.x <-HM_vPosition.z FALSE GetFieldCell ->HM_vCField
+	<-HM_vPosition.x <-HM_vPosition.z TRUE GetFieldCell ->HM_vACField
+	#Calculate field forces.
+	<-HM_vCField.x 1000000.0 div <-*PE_FIELD_FORCE_STRENGTH mul ->HM_fCFieldX
+	<-HM_vCField.y 1000000.0 div <-*PE_FIELD_FORCE_STRENGTH mul ->HM_fCFieldZ
+	<-HM_vACField.x 1000000.0 div <-*PE_FIELD_FORCE_STRENGTH mul ->HM_fACFieldX
+	<-HM_vACField.y 1000000.0 div <-*PE_FIELD_FORCE_STRENGTH mul ->HM_fACFieldZ
+	#Determine if we are currently underwater.
+	<-HM_vPosition.y <-HM_fHeight lt <-HM_bHasCreep <-HM_bHasAC or and ->HM_bUnderwater
+	
+	#If we are underwater, calculate creeper flow forces.
+	<-HM_bUnderwater if
+		#If we are underwater for the first time, disable sniper targetting and outline.
+		once @DisableSniperTarget endonce
+		#If we're swimming in enemy creeper, detonate immediately.
+		@HMDetonateInEnemyCreeper
+		
+		#Spawn crimson.
+		<-CRIMSON_PER_FRAME gt0 if
+			<-HM_vPosition.x <-HM_vPosition.z dup2 GetCrimson <-CRIMSON_PER_FRAME add SetCrimson
+		endif
+		
+		<-HM_vPosition ToCell GetFlow ->HM_iFlowZ ->HM_iFlowX
+		#Calculate creeper flow.
+		#Flow is capped to FLOW_FORCE_CREEPER_CAP, as the flow force makes particles ping off for high creeper values.
+		<-HM_iFlowX 1000000.0 div ->HM_fFlowX
+		<-HM_iFlowZ 1000000.0 div ->HM_fFlowZ
+		
+		<-HM_fFlowX <-*PE_FLOW_FORCE_STRENGTH mul ->HM_fFlowX
+		<-HM_fFlowZ <-*PE_FLOW_FORCE_STRENGTH mul ->HM_fFlowZ
+		
+		<-HM_fFlowX dup 0 lt if <-*PE_FLOW_FORCE_CAP neg max else <-*PE_FLOW_FORCE_CAP min endif ->HM_fFlowX
+		<-HM_fFlowZ dup 0 lt if <-*PE_FLOW_FORCE_CAP neg max else <-*PE_FLOW_FORCE_CAP min endif ->HM_fFlowZ
+	endif
+	
+	#Apply field and flow forces.
+	<-HM_vDelta.x <-HM_fFlowX add <-HM_fCFieldX add <-HM_fACFieldX add
+	<-HM_vDelta.y
+	<-HM_vDelta.z <-HM_fFlowZ add <-HM_fCFieldZ add <-HM_fACFieldZ add 
+		V3 ->HM_vDelta
+	
+	#If we are underwater, dampen our horizontal movement and apply a linear upwards push to simulate the particle being pushed up by creeper.
+	#We cancel out gravity in this state so that we ensure the particle is able to flow up regardless of gravity.
+	<-HM_bUnderwater if
+		<-HM_vDelta.x <-*PE_CREEPER_FRICTION mul
+		<-HM_vDelta.y <-*PE_BUOYANCY add <-*PE_MAX_BUOYANCY min <-HM_vGravity.y sub 
+		<-HM_vDelta.z <-*PE_CREEPER_FRICTION mul
+			V3 ->HM_vDelta
+	endif
+	
+	#Apply initial force and gravity.
+	<-HM_vDelta <-HM_vForce add <-HM_vGravity add ->HM_vDelta
+	
+	#Move the particle.
+	<-HM_vPosition ->HM_vLastPosition
+	<-HM_vPosition <-HM_vDelta add ->HM_vPosition
+	
+	#Calculate edge collision.
+	<-HM_vPosition <-HM_vLastPosition 0.9 BounceEdgeCollision ->HM_vNewLastPosition ->HM_vNewPosition
+	<-HM_vNewPosition.w if
+		<-HM_vNewPosition ->HM_vPosition
+		<-HM_vNewLastPosition ->HM_vLastPosition
+	endif
+	
+	#Calculate terrain collision.
+	<-HM_vPosition <-HM_vLastPosition TRUE TRUE 0 0.7 BounceTerrainCollision ->HM_vNewLastPosition ->HM_vNewPosition
+	<-HM_vNewPosition.w if
+		#If we've hit terrain, disable sniper targetting and outline.
+		once @DisableSniperTarget endonce
+		#If there is no friendly creeper at the spot we've hit, detonate immediately.
+		@HMDetonateInEnemyCreeper
+		
+		<-HM_vNewPosition ->HM_vPosition
+		<-HM_vNewLastPosition ->HM_vLastPosition
+	endif
+	
+	Self <-HM_vPosition SetUnitPosition
+	
+	#Remove initial force.
+	0 0 0 V3 ->HM_vForce
+:HMDetonateInEnemyCreeper
+	<-PAYLOAD gte0 <-HM_bHasCreep not and if
+		TRUE ->G_bNaturalDecay
+		Self Self GetUnitHealth DamageUnit
+	else <-PAYLOAD lt0 <-HM_bHasAC not and if
+		TRUE ->G_bNaturalDecay
+		Self Self GetUnitHealth DamageUnit
+	endif endif
+:DisableSniperTarget
+	Self 0 0 0 0 V4 SetUnitSpecialTarget
+	Self FALSE SetUnitOutlineEnabled
+:UpdateScale
+	Self "sphere"
+		1.0 Self GetUnitHealth Self GetUnitMaxHealth div sub <-GROWTH_SCALE mul <-INITIAL_SCALE add
+	dup dup V3 SetObjScale
+	

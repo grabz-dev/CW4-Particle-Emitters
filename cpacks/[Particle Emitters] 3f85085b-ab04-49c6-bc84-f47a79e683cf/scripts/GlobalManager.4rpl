@@ -1,0 +1,45 @@
+# --GlobalManager-- 12/6/2021 4:13:06 PM
+
+#Max total particles on the map.
+$MAX_PARTICLES:200
+#The strength with which fields can push particles.
+$FIELD_FORCE_STRENGTH:0.005
+#The strength with which flow can push particles.
+#Increase to cause smaller waves to exert bigger force on a particle.
+#Decrease to cause smaller waves to exert much smaller force on a particle.
+#0.0 will disable flow from affecting particles.
+$FLOW_FORCE_STRENGTH:0.025
+#The maximum force that creeper flow can exert.
+#Positive values only. Lower this to decrease how much particles move with flow.
+#0.0 will disable flow from affecting particles.
+$$FLOW_FORCE_CAP:0.001
+#Speed multiplier applied to particles that are swimming in creeper.
+#Lower this value to make particles slow down quicker while swimming.
+$CREEPER_FRICTION:0.99
+#The linear vertical speed increase applied to a particle that's underwater, making it swim up.
+$BUOYANCY:0.004
+#The maximum possible speed with which a particle can swim up while underwater.
+$MAX_BUOYANCY:0.1
+
+:once
+	@awake
+:awake
+	once @init endonce
+:init
+	<-MAX_PARTICLES ->*PE_MAX_PARTICLES
+	<-FIELD_FORCE_STRENGTH ->*PE_FIELD_FORCE_STRENGTH
+	<-FLOW_FORCE_STRENGTH ->*PE_FLOW_FORCE_STRENGTH
+	<-FLOW_FORCE_CAP ->*PE_FLOW_FORCE_CAP
+	<-CREEPER_FRICTION ->*PE_CREEPER_FRICTION
+	<-BUOYANCY ->*PE_BUOYANCY
+	<-MAX_BUOYANCY ->*PE_MAX_BUOYANCY
+
+	0 ->*PE_iSpawned
+	CreateTable ->*PE_tGUIDs
+	<-*PE_tGUIDs "Particle" "cde7a302-e09a-47ee-83ff-64186c7fb8a7" SetTableElement
+	<-*PE_tGUIDs "AC Emitter" "da54e5da-5fa4-410d-a92d-96583ed0fe28" SetTableElement
+	<-*PE_tGUIDs "C Emitter" "ae3682be-1dd2-4712-a1b3-70b1fb700cec" SetTableElement
+	
+	CreateTable ->*PE_tParticleUIDs
+
+	

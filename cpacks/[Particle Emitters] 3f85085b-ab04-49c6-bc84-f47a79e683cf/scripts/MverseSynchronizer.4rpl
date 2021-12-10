@@ -1,0 +1,49 @@
+# --MverseSynchronizer-- 12/6/2021 11:57:19 PM
+
+#If we are host (not even in singleplayer)
+GetMversePlayerNum eq0 if
+	#Every amount of frames, we take all of host's particles and send their positions to other clients so that they can synchronize their positions.
+	GetGameUpdateCount <-G_iUpdateCount sub 60 gte if
+		GetGameUpdateCount ->G_iUpdateCount
+		
+		<-*PE_tParticleUIDs GetTableKeys ->lKeys
+		CreateList ->lData
+		<-lKeys 0 do
+			<-lData "u" <-lKeys[I] "p" <-lKeys[I] GetUnitPosition "lp" <-lKeys[I] "Particle.4rpl" "HM_vLastPosition" GetScriptVar 3 TableN AppendToList
+		loop
+		"PE_ParticleSynchronization" <-lData SendMVerseMsg
+	endif
+endif
+
+:once
+	@awake
+:awake
+	once @init endonce
+:init
+	"PE_ParticleCreated" "OnParticleCreated" RegisterForMsg
+	"PE_ParticleDamaged" "OnParticleDamaged" RegisterForMsg
+	"PE_ParticleDestroyed" "OnParticleDestroyed" RegisterForMsg
+	"PE_ParticleSynchronization" "OnParticleSynchronization" RegisterForMsg
+	GetGameUpdateCount ->G_iUpdateCount
+:OnParticleCreated
+	<-_DATA Copy ->OP_tInitParams
+	<-OP_tInitParams "_INITIAL_POSITION" RemoveTableElement
+	<-*PE_tGUIDs{"Particle"} <-_DATA{"_INITIAL_POSITION"} <-OP_tInitParams CreateUnit pop
+:OnParticleDamaged
+	<-*PE_tParticleUIDs{<-_DATA{"HOST_UID"}} ->OP_iUID
+	<-OP_iUID <-OP_iUID GetUnitHealth <-_DATA{"DAMAGE"} sub SetUnitHealth
+	<-OP_iUID "Particle.4rpl" "G_fHealth" <-OP_iUID "Particle.4rpl" "G_fHealth" GetScriptVar <-_DATA{"DAMAGE"} sub SetScriptVar
+:OnParticleDestroyed
+	<-*PE_tParticleUIDs{<-_DATA{"HOST_UID"}} ->OP_iUID
+	<-_DATA{"_NATURAL_DECAY"} if
+		<-OP_iUID "Particle.4rpl" "G_bNaturalDecay" TRUE SetScriptVar
+	endif
+	<-OP_iUID TRUE FALSE TRUE DestroyUnit
+:OnParticleSynchronization
+	<-_DATA 0 do
+		<-_DATA[I] ->OP_tData
+		<-*PE_tParticleUIDs{<-OP_tData{"u"}} ->OP_iUID
+		<-OP_iUID <-OP_tData{"p"} SetUnitPosition
+		<-OP_iUID "Particle.4rpl" "HM_vLastPosition" <-OP_tData{"lp"} SetScriptVar
+	loop
+	
