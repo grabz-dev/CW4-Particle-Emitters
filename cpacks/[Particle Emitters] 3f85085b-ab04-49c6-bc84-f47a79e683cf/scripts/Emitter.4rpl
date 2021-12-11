@@ -20,9 +20,12 @@ $LIFETIME:5400
 $LIFETIME_RANDOM_FUZZ:0
 #1 if this is supposed to be a flip emitter, 0 otherwise. Only has an effect on C emitters.
 $IS_FLIP_EMITTER:0
-#How far will the emitter throw particles. 0 will throw the particles straight up in the air.
-#Don't set this too high, a value of 3 already goes pretty far.
-$SPAWN_FORCE_MULTIPLIER:1.0
+#The reflection scale applied when impacting with terrain.
+$TERRAIN_REFLECTION_SCALE:0.7
+#How far will the emitter throw particles horizontally. 0 will throw the particles straight up in the air.
+$SPAWN_HORIZ_FORCE_MULT:1.0
+#How far will the emitter throw particles vertically. 0 will not throw particles at all.
+$SPAWN_VERT_FORCE_MULT:1.0
 #The gravity applied to particles created by this emitter.
 $GRAVITY_X:0.0
 $GRAVITY_Y:-0.018
@@ -35,7 +38,7 @@ Self GetUnitPosition ->vPos
 
 #Handle emitter levitation.
 <-fHeight <-LEVITATE_HEIGHT add ->fHeight
-<-fHeight <-G_fHeight sub 0.05 mul <-G_fHeight add ->G_fHeight
+<-fHeight <-G_fHeight sub 0.01 mul <-G_fHeight add ->G_fHeight
 Self <-vPos.x <-G_fHeight <-vPos.z V3 SetUnitPosition
 
 #Handle behavior upon nullification.
@@ -98,9 +101,9 @@ else <-G_sState "EMITTING" eq if
 		<-tOpts "EMITTER_UID" Self SetTableElement
 		
 		#Generate the direction and force of the particle.
-		RandFloat 0.5 sub 0.18 mul <-SPAWN_FORCE_MULTIPLIER mul
-		0.65
-		RandFloat 0.5 sub 0.18 mul <-SPAWN_FORCE_MULTIPLIER mul
+		RandFloat 0.5 sub 0.18 mul <-SPAWN_HORIZ_FORCE_MULT mul
+		0.65 <-SPAWN_VERT_FORCE_MULT mul
+		RandFloat 0.5 sub 0.18 mul <-SPAWN_HORIZ_FORCE_MULT mul
 			V3 ->vInitialForce
 		
 		#This is needed because the particle doesn't update the global max particles immediately, so without this
@@ -118,9 +121,9 @@ else <-G_sState "EMITTING" eq if
 		
 			#Throw multiple particles in roughly the same direction by slightly fuzzing the original direction and force we created.
 			<-tOpts "INITIAL_FORCE"
-				<-vInitialForce.x RandFloat 0.5 sub 0.1 mul add <-SPAWN_FORCE_MULTIPLIER mul
+				<-vInitialForce.x RandFloat 0.5 sub 0.1 mul add <-SPAWN_HORIZ_FORCE_MULT mul
 				<-vInitialForce.y
-				<-vInitialForce.z RandFloat 0.5 sub 0.1 mul add <-SPAWN_FORCE_MULTIPLIER mul
+				<-vInitialForce.z RandFloat 0.5 sub 0.1 mul add <-SPAWN_HORIZ_FORCE_MULT mul
 			V3 SetTableElement
 			
 			#Fuzz the lifetime value.
@@ -131,7 +134,16 @@ else <-G_sState "EMITTING" eq if
 			<-tOpts "ENTRY_PARAMETERS" <-tOpts Copy SetTableElement
 			
 			#Create the particle.
-			<-*PE_tGUIDs{"Particle"} <-vPos.x <-vPos.y 2.0 add <-vPos.z V3 <-tOpts CreateUnit
+			<-tOpts{"PAYLOAD"} gte0 if
+				<-tOpts{"CRIMSON_PER_FRAME"} gt0 if
+					<-*PE_tGUIDs{"Crimson Particle"}
+				else
+					<-*PE_tGUIDs{"Creeper Particle"}
+				endif
+			else
+				<-*PE_tGUIDs{"AC Particle"}
+			endif
+				<-vPos.x <-vPos.y 2.0 add <-vPos.z V3 <-tOpts CreateUnit
 			
 			#Increment our counters.
 			<-G_iParticlesOwned 1 add ->G_iParticlesOwned
@@ -175,7 +187,7 @@ endif endif
 	RemoveWhiteSpace SetUnitMiniMapImage
 	
 	#Names of properties of this emitter to send copies of to any created particles.
-	ClearStack "GRAVITY_X" "GRAVITY_Y" "GRAVITY_Z" "CRIMSON_PER_FRAME" List ->G_lVarsToSend
+	ClearStack "GRAVITY_X" "GRAVITY_Y" "GRAVITY_Z" "CRIMSON_PER_FRAME" "TERRAIN_REFLECTION_SCALE" List ->G_lVarsToSend
 	
 	0 ->G_iParticlesOwned
 	FALSE ->G_bIsNullified
@@ -185,8 +197,10 @@ endif endif
 	
 	<-IS_FLIP_EMITTER if
 		Self "flip" TRUE SetObjActive
+		Self "flip" 0 1.3 0 V3 FALSE SetObjPosition
 	else
 		Self "flip" FALSE SetObjActive
+		Self "flip" 0 0 0 V3 FALSE SetObjPosition
 	endif
 	
 	@InitSwitches
@@ -214,6 +228,9 @@ endif endif
 	else
 		Self 1 0 0 1 V4 SetUnitMiniMapImageColor
 		Self 1 0 0 1 V4 SetUnitOutlineColor
+	endif
+	Self GetUnitType <-*PE_tGUIDs{"AC Emitter"} eq if
+		Self 0 1 1 1 V4 SetUnitOutlineColor
 	endif
 	
 	#Change the flip light to green if this flip emitter is nullified, otherwise make it red.

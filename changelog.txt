@@ -1,0 +1,7 @@
+Particle Emitters 1.1, 2021-12-11
+  * Improved particle performance by reducing the model to just the root level object.
+  * Improved visibility of custom things in the recorder.
+  * Made crimson particles slightly less bright.
+  * Slowed down emitter levitation.
+  * Added a few more parameters for emitters.
+  * Changed AC emitter outline.

@@ -36,9 +36,11 @@ $MAX_BUOYANCY:0.1
 
 	0 ->*PE_iSpawned
 	CreateTable ->*PE_tGUIDs
-	<-*PE_tGUIDs "Particle" "cde7a302-e09a-47ee-83ff-64186c7fb8a7" SetTableElement
 	<-*PE_tGUIDs "AC Emitter" "da54e5da-5fa4-410d-a92d-96583ed0fe28" SetTableElement
 	<-*PE_tGUIDs "C Emitter" "ae3682be-1dd2-4712-a1b3-70b1fb700cec" SetTableElement
+	<-*PE_tGUIDs "Creeper Particle" "cde7a302-e09a-47ee-83ff-64186c7fb8a7" SetTableElement
+	<-*PE_tGUIDs "Crimson Particle" "b11b58fa-a4d1-4d52-8b88-f92e6b77a35c" SetTableElement
+	<-*PE_tGUIDs "AC Particle" "64ecb4dd-9770-4fd3-99ab-0b5ee8af95a9" SetTableElement
 	
 	CreateTable ->*PE_tParticleUIDs
 

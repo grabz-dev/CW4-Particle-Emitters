@@ -12,6 +12,8 @@ $GRAVITY_Z:0.0
 $INITIAL_SCALE:1.0
 #The amount scale the particle will grow until max. INITIAL_SCALE + GROWTH_SCALE = max scale.
 $GROWTH_SCALE:1.0
+#The reflection scale applied when impacting with terrain.
+$TERRAIN_REFLECTION_SCALE:0.7
 #The UID of the parent emitter. Used to make individual emitter particle caps work.
 $$EMITTER_UID:-1
 
@@ -82,21 +84,22 @@ endif
 	endif
 :init
 	<-PAYLOAD gte0 if
-		<-CRIMSON_PER_FRAME gt0 if
-			Self "sphere" 1.2 0.08 0.18 V3 SetObjColor
-		else
-			Self "sphere" 0.08 0.18 1.2 V3 SetObjColor
-		endif
 		Self 1 0 0 0 V4 SetUnitSpecialTarget
-		
 		Self TRUE SetUnitOutlineEnabled
 		Self TRUE SetUnitOutlineMode
 		Self 0 0 0.6 1 V4 SetUnitOutlineColor
 		Self 2 SetUnitOutlineWidth
 	else
-		Self "sphere" 0.4 0.4 0.4 V3 SetObjColor
 		Self 0 0 0 0 V4 SetUnitSpecialTarget
 	endif
+	
+	Self GetUnitType <-*PE_tGUIDs{"Crimson Particle"} eq if
+		Self "" 1.1 0.08 0.18 V3 SetObjColor
+	else Self GetUnitType <-*PE_tGUIDs{"Creeper Particle"} eq if
+		Self "" 0.08 0.18 1.2 V3 SetObjColor
+	else Self GetUnitType <-*PE_tGUIDs{"AC Particle"} eq if
+		Self "" 0.4 0.4 0.4 V3 SetObjColor
+	endif endif endif
 	
 	-?INITIAL_FORCE not if
 		0 0 0 V3 ->HM_vForce
@@ -192,7 +195,7 @@ endif
 	endif
 	
 	#Calculate terrain collision.
-	<-HM_vPosition <-HM_vLastPosition TRUE TRUE 0 0.7 BounceTerrainCollision ->HM_vNewLastPosition ->HM_vNewPosition
+	<-HM_vPosition <-HM_vLastPosition TRUE TRUE 0 <-TERRAIN_REFLECTION_SCALE BounceTerrainCollision ->HM_vNewLastPosition ->HM_vNewPosition
 	<-HM_vNewPosition.w if
 		#If we've hit terrain, disable sniper targetting and outline.
 		once @DisableSniperTarget endonce
@@ -219,7 +222,7 @@ endif
 	Self 0 0 0 0 V4 SetUnitSpecialTarget
 	Self FALSE SetUnitOutlineEnabled
 :UpdateScale
-	Self "sphere"
+	Self ""
 		1.0 Self GetUnitHealth Self GetUnitMaxHealth div sub <-GROWTH_SCALE mul <-INITIAL_SCALE add
 	dup dup V3 SetObjScale
 	
