@@ -12,7 +12,7 @@ $FLOW_FORCE_STRENGTH:0.025
 #The maximum force that creeper flow can exert.
 #Positive values only. Lower this to decrease how much particles move with flow.
 #0.0 will disable flow from affecting particles.
-$$FLOW_FORCE_CAP:0.001
+$FLOW_FORCE_CAP:0.001
 #Speed multiplier applied to particles that are swimming in creeper.
 #Lower this value to make particles slow down quicker while swimming.
 $CREEPER_FRICTION:0.99

@@ -1,3 +1,8 @@
+Particle Emitters 1.2, 2021-12-11
+  * Fixed particles not appearing for clients in Mverse.
+  * Added the ability to set a minimum amount of time a particle can be vulnerable to snipers.
+  * Added the ability to set minimum amount of creeper underneath a particle to cause it to pop.
+  
 Particle Emitters 1.1, 2021-12-11
   * Improved particle performance by reducing the model to just the root level object.
   * Improved visibility of custom things in the recorder.

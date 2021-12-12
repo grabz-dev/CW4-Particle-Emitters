@@ -28,7 +28,8 @@ endif
 :OnParticleCreated
 	<-_DATA Copy ->OP_tInitParams
 	<-OP_tInitParams "_INITIAL_POSITION" RemoveTableElement
-	<-*PE_tGUIDs{"Particle"} <-_DATA{"_INITIAL_POSITION"} <-OP_tInitParams CreateUnit pop
+	<-OP_tInitParams "_UNIT_TYPE" RemoveTableElement
+	<-_DATA{"_UNIT_TYPE"} <-_DATA{"_INITIAL_POSITION"} <-OP_tInitParams CreateUnit pop
 :OnParticleDamaged
 	<-*PE_tParticleUIDs{<-_DATA{"HOST_UID"}} ->OP_iUID
 	<-OP_iUID <-OP_iUID GetUnitHealth <-_DATA{"DAMAGE"} sub SetUnitHealth
