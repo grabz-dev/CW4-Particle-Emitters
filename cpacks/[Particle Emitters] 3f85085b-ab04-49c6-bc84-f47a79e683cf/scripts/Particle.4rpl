@@ -229,7 +229,6 @@ endif
 		Self Self GetUnitHealth DamageUnit
 	else <-CREEPER_POP_THRESHOLD neq0 if
 		<-HM_vPosition.x <-HM_vPosition.z GetCreeper ->HM_fCreeper
-		<-HM_fCreeper Print
 		<-PAYLOAD gte0 <-HM_fCreeper <-CREEPER_POP_THRESHOLD lte and if
 			TRUE ->G_bNaturalDecay
 			Self Self GetUnitHealth DamageUnit
