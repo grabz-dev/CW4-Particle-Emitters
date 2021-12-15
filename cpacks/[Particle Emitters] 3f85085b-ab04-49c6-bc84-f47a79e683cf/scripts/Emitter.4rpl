@@ -22,6 +22,8 @@ $LIFETIME_RANDOM_FUZZ:0
 $IS_FLIP_EMITTER:0
 #The amount of frames at the minimum that a particle will be vulnerable to sniper fire for.
 $FRAMES_VULNERABLE:300
+#Whether or not the particle will be vulnerable to sniper fire until it impacts with creeper or terrain.
+$VULNERABLE_UNTIL_IMPACT:1
 #The amount of creeper or lower that a particle will cease to swim in, and will instead pop.
 $CREEPER_POP_THRESHOLD:0.0
 #The reflection scale applied when impacting with terrain.
@@ -191,7 +193,7 @@ endif endif
 	RemoveWhiteSpace SetUnitMiniMapImage
 	
 	#Names of properties of this emitter to send copies of to any created particles.
-	ClearStack "GRAVITY_X" "GRAVITY_Y" "GRAVITY_Z" "CRIMSON_PER_FRAME" "TERRAIN_REFLECTION_SCALE" "FRAMES_VULNERABLE" "CREEPER_POP_THRESHOLD" List ->G_lVarsToSend
+	ClearStack "GRAVITY_X" "GRAVITY_Y" "GRAVITY_Z" "CRIMSON_PER_FRAME" "TERRAIN_REFLECTION_SCALE" "FRAMES_VULNERABLE" "VULNERABLE_UNTIL_IMPACT" "CREEPER_POP_THRESHOLD" List ->G_lVarsToSend
 	
 	0 ->G_iParticlesOwned
 	FALSE ->G_bIsNullified

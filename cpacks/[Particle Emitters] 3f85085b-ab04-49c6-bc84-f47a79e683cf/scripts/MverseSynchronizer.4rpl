@@ -32,13 +32,23 @@ endif
 	<-_DATA{"_UNIT_TYPE"} <-_DATA{"_INITIAL_POSITION"} <-OP_tInitParams CreateUnit pop
 :OnParticleDamaged
 	<-*PE_tParticleUIDs{<-_DATA{"HOST_UID"}} ->OP_iUID
-	<-OP_iUID <-OP_iUID GetUnitHealth <-_DATA{"DAMAGE"} sub SetUnitHealth
-	<-OP_iUID "Particle.4rpl" "G_fHealth" <-OP_iUID "Particle.4rpl" "G_fHealth" GetScriptVar <-_DATA{"DAMAGE"} sub SetScriptVar
+	<-OP_iUID 
+		<-OP_iUID GetUnitHealth <-_DATA{"DAMAGE"} sub
+	SetUnitHealth
+	<-OP_iUID "Particle.4rpl" "G_fHealth" 
+		<-OP_iUID "Particle.4rpl" "G_fHealth" GetScriptVar <-_DATA{"DAMAGE"} sub
+	SetScriptVar
+	
+	#:UpdateScale
+	<-OP_iUID ""
+		1.0 <-OP_iUID GetUnitHealth <-OP_iUID GetUnitMaxHealth div sub <-OP_iUID "Particle.4rpl" "GROWTH_SCALE" GetScriptVar mul <-OP_iUID "Particle.4rpl" "INITIAL_SCALE" GetScriptVar add
+	dup dup V3 SetObjScale
 :OnParticleDestroyed
 	<-*PE_tParticleUIDs{<-_DATA{"HOST_UID"}} ->OP_iUID
 	<-_DATA{"_NATURAL_DECAY"} if
 		<-OP_iUID "Particle.4rpl" "G_bNaturalDecay" TRUE SetScriptVar
 	endif
+	<-OP_iUID "Particle.4rpl" "G_bDestroyedByMverse" TRUE SetScriptVar
 	<-OP_iUID TRUE FALSE TRUE DestroyUnit
 :OnParticleSynchronization
 	<-_DATA 0 do

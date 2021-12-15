@@ -16,49 +16,56 @@ $GROWTH_SCALE:1.0
 $TERRAIN_REFLECTION_SCALE:0.7
 #The amount of frames at the minimum that a particle will be vulnerable to sniper fire for.
 $FRAMES_VULNERABLE:300
+#Whether or not the particle will be vulnerable to sniper fire until it impacts with creeper or terrain.
+$VULNERABLE_UNTIL_IMPACT:1
 #The amount of creeper or lower that a particle will cease to swim in, and will instead pop.
 $CREEPER_POP_THRESHOLD:0.0
 #The UID of the parent emitter. Used to make individual emitter particle caps work.
 $$EMITTER_UID:-1
-
-#Destroy this unit if it is not spawned by mverse and we are not host.
-#This would happen if a player hosted Mverse in the middle of a game.
--?HOST_UID not GetMVersePlayerNum 0 gt and if
-	Self TRUE TRUE TRUE DestroyUnit
-endif
+#The amount of frames to stagger updates for certain routines. Higher values mean more framerate, but potentially worse gameplay.
 
 @HandleMovement
-
 
 GetUnitUpdateCount <-FRAMES_VULNERABLE gt if
 	once FALSE TRUE @DisableSniperTarget endonce
 endif
 
 #If hit by a sniper
-Self GetUnitHealth <-G_fHealth <-fGrowthDamagePerFrame sub lt if
-	#Transmit the damage to other players
-	"PE_ParticleDamaged" "HOST_UID" -?HOST_UID if <-HOST_UID else Self endif "DAMAGE" <-G_fHealth Self GetUnitHealth sub 2 TableN SendMVerseMsg
-	Self GetUnitHealth ->G_fHealth
+Self GetUnitHealth <-G_fHealth lt if
+	Self GetUnitHealth gt0 if
+		#Transmit the damage to other players
+		"PE_ParticleDamaged" "HOST_UID" -?HOST_UID if <-HOST_UID else Self endif "DAMAGE" <-G_fHealth Self GetUnitHealth sub 2 TableN SendMVerseMsg
+		Self GetUnitHealth ->G_fHealth
+		@UpdateScale
+	endif
 endif
+
 <-G_fHealth <-fGrowthDamagePerFrame sub ->G_fHealth
 Self <-G_fHealth SetUnitHealth
-@UpdateScale
-
 <-G_fHealth 0 lte if
 	TRUE ->G_bNaturalDecay
 	Self 0 DamageUnit
 endif
 
+#Update scale over time
+GetTimer0 eq0 if
+	<-LIFETIME 100.0 div <-GROWTH_SCALE mul SetTimer0
+	@UpdateScale
+endif
+
 :once
 	@awake
-	<-*PE_iSpawned 1 add ->*PE_iSpawned
-	<-*PE_tParticleUIDs -?HOST_UID if <-HOST_UID else Self endif Self SetTableElement
-	TRUE ->G_bUnitGlobalSpawnInitialized
 	
 	#If we are host, send a message to others to create a clone.
 	#Putting it here because if I put it in :awake, if host instantly kills the particle,
 	#it remains for clients.
 	-?HOST_UID not if
+		#If we are host, make sure we set this so we skip sending the PE_ParticleDamaged event
+		#from the unit being sniped between :awake and :once.
+		#The reason we do this is because we send the initial health status after those hits,
+		#and we don't want clients to dupe the damage.
+		Self GetUnitHealth ->G_fHealth
+	
 		Self GetUnitHealth 0 gt if
 			<-ENTRY_PARAMETERS "HOST_UID" Self SetTableElement 
 			<-ENTRY_PARAMETERS "_INITIAL_POSITION" Self GetUnitPosition SetTableElement
@@ -76,7 +83,9 @@ endif
 	once @init endonce
 :destroyed
 	#Transmit the destruction to other players
-	"PE_ParticleDestroyed" "HOST_UID" -?HOST_UID if <-HOST_UID else Self endif "_NATURAL_DECAY" <-G_bNaturalDecay 2 TableN SendMVerseMsg
+	<-G_bDestroyedByMverse not if
+		"PE_ParticleDestroyed" "HOST_UID" -?HOST_UID if <-HOST_UID else Self endif "_NATURAL_DECAY" <-G_bNaturalDecay 2 TableN SendMVerseMsg
+	endif
 
 	<-G_bUnitGlobalSpawnInitialized if
 		<-*PE_iSpawned 1 sub ->*PE_iSpawned
@@ -93,12 +102,29 @@ endif
 		#endif
 	endif
 :init
+	<-*PE_iSpawned 1 add ->*PE_iSpawned
+	<-*PE_tParticleUIDs -?HOST_UID if <-HOST_UID else Self endif Self SetTableElement
+	TRUE ->G_bUnitGlobalSpawnInitialized
+
 	<-PAYLOAD gte0 if
-		Self 1 0 0 0 V4 SetUnitSpecialTarget
-		Self TRUE SetUnitOutlineEnabled
-		Self TRUE SetUnitOutlineMode
-		Self 0 0 0.6 1 V4 SetUnitOutlineColor
-		Self 2 SetUnitOutlineWidth
+		<-VULNERABLE_UNTIL_IMPACT not if
+			TRUE FALSE @DisableSniperTarget
+		endif
+		
+		<-FRAMES_VULNERABLE lte0 if
+			FALSE TRUE @DisableSniperTarget
+		endif
+		
+		#If at least of the two switches above didnt trigger we proceed with creating the outline and target
+		<-G_bDisableSniperFromTimer not <-G_bDisableSniperFromImpact not or if
+			Self 1 0 0 0 V4 SetUnitSpecialTarget
+			Self TRUE SetUnitOutlineEnabled
+			Self TRUE SetUnitOutlineMode
+			Self 0 0 0.6 1 V4 SetUnitOutlineColor
+			Self 2 SetUnitOutlineWidth
+		else
+			Self 0 0 0 0 V4 SetUnitSpecialTarget
+		endif
 	else
 		Self 0 0 0 0 V4 SetUnitSpecialTarget
 	endif
@@ -125,6 +151,7 @@ endif
 	<-CUR_HEALTH ->G_fHealth
 	
 	GetMapSize ->G_iMapHeight ->G_iMapWidth
+	FALSE ->G_bDestroyedByMverse
 	
 	@UpdateScale
 	
@@ -254,6 +281,7 @@ endif
 		Self FALSE SetUnitOutlineEnabled
 	endif
 :UpdateScale
+	#If you change this function, also change this function's copy in MverseSynchronizer.4rpl's OnParticleDamaged event
 	Self ""
 		1.0 Self GetUnitHealth Self GetUnitMaxHealth div sub <-GROWTH_SCALE mul <-INITIAL_SCALE add
 	dup dup V3 SetObjScale
