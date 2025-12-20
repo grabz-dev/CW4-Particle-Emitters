@@ -1,3 +1,6 @@
+Particle Emitters 1.5, 2022-11-20
+  * Small fixes.
+
 Particle Emitters 1.4, 2021-12-15
   * Added a setting that lets mapmakers turn off particle vulnerability until impact.
   * Slight performance improvements for particle logic.
