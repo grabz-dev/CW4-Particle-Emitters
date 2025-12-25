@@ -189,7 +189,12 @@ endif
 			<-HM_vPosition.x <-HM_vPosition.z dup2 GetCrimson <-CRIMSON_PER_FRAME add SetCrimson
 		endif
 		
+		<-HM_vPosition ToCell GetCreeper ->HM_fCreeper
 		<-HM_vPosition ToCell GetFlow ->HM_iFlowZ ->HM_iFlowX
+		<-HM_fCreeper 0 lt if
+			<-HM_iFlowX neg ->HM_iFlowX
+			<-HM_iFlowZ neg ->HM_iFlowZ
+		endif
 		#Calculate creeper flow.
 		#Flow is capped to FLOW_FORCE_CREEPER_CAP, as the flow force makes particles ping off for high creeper values.
 		<-HM_iFlowX 1000000.0 div ->HM_fFlowX
