@@ -1,3 +1,6 @@
+Particle Emitters 1.7, 2026-01-03
+  * Creeper pop threshold is now applied correctly for flip emitters.
+
 Particle Emitters 1.6, 2025-12-25
   * Fixed a bug where AC particles flowed upstream with flow not downstream.
 

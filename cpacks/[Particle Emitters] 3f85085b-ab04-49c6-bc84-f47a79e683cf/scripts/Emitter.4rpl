@@ -97,6 +97,13 @@ else <-G_sState "EMITTING" eq if
 		
 		#Payload is set to negative if this emitter is currently nullified.
 		<-tOpts "PAYLOAD" <-PAYLOAD <-G_bIsNullified if neg endif SetTableElement
+
+		#Make sure creeper pop threshold is correct based on payload.
+		<-tOpts{"PAYLOAD"} 0 lt if
+			<-tOpts "CREEPER_POP_THRESHOLD" <-CREEPER_POP_THRESHOLD abs neg SetTableElement
+		else
+			<-tOpts "CREEPER_POP_THRESHOLD" <-CREEPER_POP_THRESHOLD abs SetTableElement
+		endif
 		
 		#Set cur health and max health. The reason these are split is because if a particle gets hit by a sniper on frame 0,
 		#the host will need to transmit a lower cur health value.
